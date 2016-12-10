@@ -12,8 +12,8 @@ import "strings"
 import "time"
 
 type Region struct {
-	X        int64
-	Z        int64
+	X        int
+	Z        int
 	filename string
 	file     *os.File
 	header   [8192]byte
@@ -22,8 +22,10 @@ type Region struct {
 func (r *Region) Open(fn string) (err error) {
 	r.filename = fn
 	components := strings.Split(path.Base(fn), ".")
-	r.X, err = strconv.ParseInt(components[1], 10, 64)
-	r.Z, err = strconv.ParseInt(components[2], 10, 64)
+	x, err := strconv.ParseInt(components[1], 10, 64)
+	z, err := strconv.ParseInt(components[2], 10, 64)
+	r.X = int(x)
+	r.Z = int(z)
 	//fmt.Printf("Opening %s (x=%d, z=%d)\n", fn, r.X, r.Z)
 	file, err := os.Open(fn)
 	if err != nil {

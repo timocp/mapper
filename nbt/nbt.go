@@ -24,98 +24,99 @@ const (
 // you should check the type and coerce to the right thing before reading the
 // value property
 type Tag interface {
-	isTag()
+	GetName() string
 }
 
 type EndTag struct{}
 
-func (t EndTag) isTag() {}
+func (t EndTag) GetName() string { return "" }
 
 type ByteTag struct {
-	Name  string
+	name  string
 	Value int8
 }
 
-func (t ByteTag) isTag() {}
+func (t ByteTag) GetName() string { return t.name }
 
 type ShortTag struct {
-	Name  string
+	name  string
 	Value int16
 }
 
-func (t ShortTag) isTag() {}
+func (t ShortTag) GetName() string { return t.name }
 
 type IntTag struct {
-	Name  string
+	name  string
 	Value int32
 }
 
-func (t IntTag) isTag() {}
+func (t IntTag) GetName() string { return t.name }
 
 type LongTag struct {
-	Name  string
+	name  string
 	Value int64
 }
 
-func (t LongTag) isTag() {}
+func (t LongTag) GetName() string { return t.name }
 
 type FloatTag struct {
-	Name  string
+	name  string
 	Value float32
 }
 
-func (t FloatTag) isTag() {}
+func (t FloatTag) GetName() string { return t.name }
 
 type DoubleTag struct {
-	Name  string
+	name  string
 	Value float64
 }
 
-func (t DoubleTag) isTag() {}
+func (t DoubleTag) GetName() string { return t.name }
 
 type StringTag struct {
-	Name  string
+	name  string
 	Value string
 }
 
-func (t StringTag) isTag() {}
-
-// complex types are compound and the various array types.  they implement
-// Tag but also have a Size() and At(i) functions for accessing their
-// contents (which could themselves be simple or complex types)
-type complex_tag interface {
-	Size() int
-	At(int) Tag
-}
+func (t StringTag) GetName() string { return t.name }
 
 type ByteArrayTag struct {
-	Name   string
+	name   string
 	Values []byte
 }
 
-func (t ByteArrayTag) isTag() {}
+func (t ByteArrayTag) GetName() string { return t.name }
 
 type ListTag struct {
-	Name    string
+	name    string
 	TagType int
 	Values  []Tag
 }
 
-func (t ListTag) isTag() {}
+func (t ListTag) GetName() string { return t.name }
 
 type CompoundTag struct {
-	Name   string
+	name   string
 	Values []Tag
 }
 
-func (t CompoundTag) isTag() {}
+func (t CompoundTag) GetName() string { return t.name }
+
+func (t CompoundTag) ChildByName(name string) Tag {
+	for _, v := range t.Values {
+		if v.GetName() == name {
+			return v
+		}
+	}
+	return nil
+}
 
 type IntArrayTag struct {
-	Name   string
-	Values []Tag
+	name   string
+	Values []int32
 }
 
-func (t IntArrayTag) isTag() {}
+func (t IntArrayTag) GetName() string { return t.name }
 
 // the NBT parser
 // expects a value of a type implementing io.Reader.  returns the root tag of
@@ -154,7 +155,7 @@ func Parse(data io.Reader) Tag {
 		return CompoundTag{name, read_compound_values(data)}
 	case tag_int_array:
 		size := int(read_int32(data))
-		return IntArrayTag{name, read_list_values(data, tag_int, size)}
+		return IntArrayTag{name, read_int_array_values(data, size)}
 	default:
 		panic(fmt.Sprintf("Parse: unknown tag %d", tag))
 	}
@@ -177,8 +178,8 @@ func read_list_values(data io.Reader, list_type int, size int) []Tag {
 	var values []Tag
 	for i := 0; i < size; i++ {
 		switch list_type {
-		case tag_int:
-			values = append(values, IntTag{"", read_int32(data)})
+		//case tag_int:
+		//	values = append(values, IntTag{"", read_int32(data)})
 		case tag_float:
 			values = append(values, FloatTag{"", read_float32(data)})
 		case tag_double:
@@ -188,6 +189,14 @@ func read_list_values(data io.Reader, list_type int, size int) []Tag {
 		default:
 			panic(fmt.Sprintf("read_list_values: unhandled list type %d", list_type))
 		}
+	}
+	return values
+}
+
+func read_int_array_values(data io.Reader, size int) []int32 {
+	var values []int32
+	for i := 0; i < size; i++ {
+		values = append(values, read_int32(data))
 	}
 	return values
 }
@@ -256,19 +265,19 @@ func Debug(tag Tag, depth int) {
 	indent(depth)
 	switch t := tag.(type) {
 	case ByteTag:
-		fmt.Printf("Byte(%s): %d\n", t.Name, t.Value)
+		fmt.Printf("Byte(%s): %d\n", t.name, t.Value)
 	case ShortTag:
-		fmt.Printf("Short(%s): %d\n", t.Name, t.Value)
+		fmt.Printf("Short(%s): %d\n", t.name, t.Value)
 	case IntTag:
-		fmt.Printf("Int(%s): %d\n", t.Name, t.Value)
+		fmt.Printf("Int(%s): %d\n", t.name, t.Value)
 	case LongTag:
-		fmt.Printf("Long(%s): %d\n", t.Name, t.Value)
+		fmt.Printf("Long(%s): %d\n", t.name, t.Value)
 	case FloatTag:
-		fmt.Printf("Float(%s): %f\n", t.Name, t.Value)
+		fmt.Printf("Float(%s): %f\n", t.name, t.Value)
 	case DoubleTag:
-		fmt.Printf("Double(%s): %f\n", t.Name, t.Value)
+		fmt.Printf("Double(%s): %f\n", t.name, t.Value)
 	case ByteArrayTag:
-		fmt.Printf("ByteArray(%s): [", t.Name)
+		fmt.Printf("ByteArray(%s): [", t.name)
 		for i, b := range t.Values {
 			if i > 0 {
 				fmt.Printf(", ")
@@ -277,21 +286,21 @@ func Debug(tag Tag, depth int) {
 		}
 		fmt.Printf("]\n")
 	case StringTag:
-		fmt.Printf("String(%s): %s\n", t.Name, t.Value)
+		fmt.Printf("String(%s): %s\n", t.name, t.Value)
 	case ListTag:
-		fmt.Printf("List(%s) (%d tags): [\n", t.Name, t.TagType)
+		fmt.Printf("List(%s) (type %d): [\n", t.name, t.TagType)
 		for _, v := range t.Values {
 			Debug(v, depth+1)
 		}
 		indent(depth)
 		fmt.Printf("]\n")
 	case CompoundTag:
-		fmt.Printf("Compound(%s):\n", t.Name)
+		fmt.Printf("Compound(%s):\n", t.name)
 		for _, v := range t.Values {
 			Debug(v, depth+1)
 		}
 	case IntArrayTag:
-		fmt.Printf("IntArray(%s): [", t.Name)
+		fmt.Printf("IntArray(%s): [", t.name)
 		for i, v := range t.Values {
 			if i > 0 {
 				fmt.Printf(", ")
