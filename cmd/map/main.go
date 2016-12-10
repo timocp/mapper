@@ -18,12 +18,16 @@ func main() {
 			for z := 0; z < 32; z++ {
 				//offset, length := r.chunk_location(x, z)
 				//fmt.Printf("chunk(%2d, %2d) timestamp=%s offset=%d length=%d\n", x, z, r.chunk_timestamp(x, z), offset, length)
+				fmt.Printf("Loading chunk %d.%d ... ", x, z)
 				chunk_data, err := r.ChunkData(x, z)
 				must(err)
-				//fmt.Printf("%s", chunk_data)
-				fmt.Printf("Parsing chunk %d.%d\n", x, z)
-				chunk := mapper.Chunk{nbt.Parse(bytes.NewReader(chunk_data.Bytes()))}
-				chunk.Debug()
+				if chunk_data.Len() == 0 {
+					fmt.Printf("not in file!\n")
+				} else {
+					fmt.Printf("parsing...\n")
+					chunk := mapper.Chunk{nbt.Parse(bytes.NewReader(chunk_data.Bytes()))}
+					chunk.Debug()
+				}
 			}
 		}
 	}

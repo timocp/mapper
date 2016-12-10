@@ -60,9 +60,12 @@ func (r *Region) chunk_location(x int, z int) (location int, length int) {
 func (r *Region) ChunkData(x int, z int) (data bytes.Buffer, err error) {
 	var chunk_header [5]byte
 	location, _ := r.chunk_location(x, z)
+	if location == 0 {
+		// chunk isn't present in file, return empty buffer
+		return
+	}
 	r.file.Seek(int64(location*4096), io.SeekStart)
 	r.file.Read(chunk_header[:])
-	//fmt.Printf("%q\n", chunk_header)
 	length := binary.BigEndian.Uint32(chunk_header[0:4])
 	compression_type := int(chunk_header[4])
 	if compression_type != 2 {
