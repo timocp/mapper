@@ -277,7 +277,7 @@ func Debug(tag Tag, depth int) {
 	case DoubleTag:
 		fmt.Printf("Double(%s): %f\n", t.name, t.Value)
 	case ByteArrayTag:
-		fmt.Printf("ByteArray(%s): [", t.name)
+		fmt.Printf("ByteArray(%s) (len %d): [", t.name, len(t.Values))
 		for i, b := range t.Values {
 			if i > 0 {
 				fmt.Printf(", ")
