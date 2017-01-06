@@ -3,7 +3,7 @@ package mapper
 import "errors"
 import "fmt"
 
-import "github.com/timocp/mapper/nbt"
+import "github.com/timocp/nbt"
 
 var EmptySectionError = errors.New("section is empty")
 var airBlock = NewBlock(0, 0)

@@ -11,7 +11,7 @@ import "log"
 import "os"
 
 import "github.com/timocp/mapper"
-import "github.com/timocp/mapper/nbt"
+import "github.com/timocp/nbt"
 
 // a 16x16 image fragment for a single chunk
 type chunkImage struct {
