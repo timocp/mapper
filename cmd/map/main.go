@@ -9,11 +9,12 @@ import "image/draw"
 import "image/png"
 import "log"
 import "os"
+import "sync"
 
 import "github.com/timocp/mapper"
 import "github.com/timocp/nbt"
 
-// a 16x16 image fragment for a single chunk
+// a 16x16 image fragment for a single chunk, which knows its world x/z offset
 type chunkImage struct {
 	x   int
 	z   int
@@ -21,45 +22,42 @@ type chunkImage struct {
 }
 
 func main() {
-	//fmt.Println("mapper")
 	optType := flag.String("type", "terrain", "type of map to generate(biomes, height, terrain)")
 	flag.Parse()
 	var images []chunkImage
+	var wg sync.WaitGroup
+	chImages := make(chan chunkImage)
 	var minx, maxx, minz, maxz int
 	for _, fn := range flag.Args() {
-		r := new(mapper.Region)
-		fmt.Printf("Reading %s\n", fn)
-		must(r.Open(fn))
-		for x := 0; x < 32; x++ {
-			for z := 0; z < 32; z++ {
-				chunk_data, err := r.ChunkData(x, z)
-				must(err)
-				if chunk_data.Len() > 0 {
-					chunk := mapper.NewChunk(nbt.Parse(bytes.NewReader(chunk_data.Bytes())), r, x, z)
-					if chunk.X() < minx {
-						minx = chunk.X()
-					}
-					if chunk.X() > maxx {
-						maxx = chunk.X()
-					}
-					if chunk.Z() < minz {
-						minz = chunk.Z()
-					}
-					if chunk.Z() > maxz {
-						maxz = chunk.Z()
-					}
-					switch *optType {
-					case "biomes":
-						images = append(images, genBiomesImage(chunk))
-					case "terrain":
-						images = append(images, genTerrainImage(chunk))
-					case "height":
-						images = append(images, genHeightImage(chunk))
-					default:
-						panic(fmt.Sprintf("%s: invalid type", *optType))
-					}
-				}
-			}
+		wg.Add(1)
+		go func(fn string) {
+			defer wg.Done()
+			imageRegion(fn, optType, chImages)
+		}(fn)
+	}
+	go func() {
+		// separate goroutine to close the channel when all files have
+		// been read
+		wg.Wait()
+		close(chImages)
+	}()
+	// main routine reads from the channel until it is closed
+	for ci := range chImages {
+		images = append(images, ci)
+	}
+	// work out the world min/max offsets so we know where the image 0,0 is
+	for _, ci := range images {
+		if ci.x < minx {
+			minx = ci.x
+		}
+		if ci.x > maxx {
+			maxx = ci.x
+		}
+		if ci.z < minz {
+			minz = ci.z
+		}
+		if ci.z > maxz {
+			maxz = ci.z
 		}
 	}
 	fmt.Printf("imaged %d chunks (x: %d..%d, z: %d..%d)\n", len(images), minx, maxx, minz, maxz)
@@ -76,6 +74,32 @@ func main() {
 	defer output.Close()
 	must(err)
 	png.Encode(output, img)
+}
+
+// parses a region file, generating an image for each chunk and sending them to c
+func imageRegion(fn string, optType *string, c chan chunkImage) {
+	r := new(mapper.Region)
+	fmt.Printf("Reading %s\n", fn)
+	must(r.Open(fn))
+	for x := 0; x < 32; x++ {
+		for z := 0; z < 32; z++ {
+			chunkData, err := r.ChunkData(x, z)
+			must(err)
+			if chunkData.Len() > 0 {
+				chunk := mapper.NewChunk(nbt.Parse(bytes.NewReader(chunkData.Bytes())), r, x, z)
+				switch *optType {
+				case "biomes":
+					c <- genBiomesImage(chunk)
+				case "terrain":
+					c <- genTerrainImage(chunk)
+				case "height":
+					c <- genHeightImage(chunk)
+				default:
+					panic(fmt.Sprintf("%s: invalid type", *optType))
+				}
+			}
+		}
+	}
 }
 
 func must(err error) {
